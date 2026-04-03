@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Bot Dashboard</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body {
+            background: #0f172a;
+            color: #e2e8f0;
+            font-family: monospace;
+        }
+
+        #logs {
+            height: 60vh;
+            overflow-y: auto;
+            border: 1px solid #334155;
+            padding: 10px;
+            border-radius: 10px;
+            background: #020617;
+        }
+
+        .btn {
+            margin: 5px;
+            padding: 6px 12px;
+            background: #1e293b;
+            border: none;
+            color: white;
+            cursor: pointer;
+            border-radius: 6px;
+        }
+
+        .btn:hover {
+            background: #334155;
+        }
+
+        .TOXIC {
+            color: red;
+        }
+
+        .REPLY {
+            color: lime;
+        }
+
+        .ERROR {
+            color: pink;
+        }
+
+        #botInfo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+            background: #1e293b;
+            padding: 10px;
+            border-radius: 10px;
+        }
+
+        #avatar {
+            width: 50px;
+            border-radius: 50%;
+            box-shadow: 0 0 10px lime;
+        }
+
+        #panel {
+            margin-bottom: 10px;
+            background: #1e293b;
+            padding: 10px;
+            border-radius: 10px;
+        }
+
+        .status-on {
+            color: lime;
+        }
+
+        .status-off {
+            color: red;
+        }
+
+        .row {
+            margin: 4px 0;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- 👤 BOT INFO -->
+    <div id="botInfo">
+        <img id="avatar" src="">
+        <div>
+            <div id="name">Loading...</div>
+            <div id="id" style="font-size:12px;color:gray;"></div>
+        </div>
+    </div>
+
+    <h2>📊 Bot Dashboard</h2>
+
+    <!-- 🎛️ CONTROL PANEL -->
+    <div id="panel">
+        <h3>⚙️ Feature Control</h3>
+        <div id="status"></div>
+
+        <hr style="margin:10px 0; border-color:#334155;">
+
+        <h3>📜 Log Control</h3>
+        <div id="logControls"></div>
+    </div>
+
+    <!-- 🧹 LOG CONTROLS -->
+    <button class="btn" onclick="clearLogs()">Clear Logs</button>
+    <button class="btn" onclick="toggleAuto()">Auto Scroll</button>
+
+    <!-- 📜 LOG -->
+    <div id="logs"></div>
+
+    <script>
+        const socket = io();
+        const logsDiv = document.getElementById("logs");
+
+        let autoScroll = true;
+        let settings = {};
+        let logSettings = {};
+
+        // 📜 log realtime
+        socket.on("log_line", (line) => {
+            const div = document.createElement("div");
+            div.textContent = line;
+
+            if (line.includes("TOXIC")) div.className = "TOXIC";
+            if (line.includes("REPLY")) div.className = "REPLY";
+            if (line.includes("ERROR")) div.className = "ERROR";
+
+            logsDiv.appendChild(div);
+
+            if (autoScroll) {
+                logsDiv.scrollTop = logsDiv.scrollHeight;
+            }
+        });
+
+        socket.on("clear", () => logsDiv.innerHTML = "");
+
+        function clearLogs() {
+            socket.emit("clear");
+        }
+
+        function toggleAuto() {
+            autoScroll = !autoScroll;
+        }
+
+        // 👤 bot info
+        socket.on("bot_info", (data) => {
+            avatar.src = data.avatar;
+            name.textContent = data.tag;
+            id.textContent = "ID: " + data.id;
+        });
+
+        socket.on("bot_status", (status) => {
+            name.textContent = `${name.textContent.split(" (")[0]} (${status})`;
+        });
+
+        // ================= FEATURE TOGGLE (ทุกตัว) =================
+        socket.on("settings", (data) => {
+            settings = data;
+            renderFeature();
+        });
+
+        socket.on("update_settings", (data) => {
+            settings = data;
+            renderFeature();
+        });
+
+        function renderFeature() {
+            const container = document.getElementById("status");
+            container.innerHTML = "";
+
+            Object.keys(settings).forEach(key => {
+                const div = document.createElement("div");
+                div.className = "row";
+
+                div.innerHTML = `
+            ${key} :
+            <span class="${settings[key] ? 'status-on' : 'status-off'}">
+                ${settings[key] ? '🟢 ON' : '🔴 OFF'}
+            </span>
+            <button class="btn" onclick="toggleFeature('${key}')">Toggle</button>
+        `;
+
+                container.appendChild(div);
+            });
+        }
+
+        function toggleFeature(key) {
+            socket.emit("toggle", {
+                key,
+                value: !settings[key]
+            });
+        }
+
+        // ================= LOG TOGGLE =================
+        socket.on("log_settings", (data) => {
+            logSettings = data;
+            renderLogs();
+        });
+
+        function renderLogs() {
+            const container = document.getElementById("logControls");
+            container.innerHTML = "";
+
+            Object.keys(logSettings).forEach(key => {
+                const div = document.createElement("div");
+                div.className = "row";
+
+                div.innerHTML = `
+            ${key} :
+            <span class="${logSettings[key] ? 'status-on' : 'status-off'}">
+                ${logSettings[key] ? '🟢 ON' : '🔴 OFF'}
+            </span>
+            <button class="btn" onclick="toggleLog('${key}')">Toggle</button>
+        `;
+
+                container.appendChild(div);
+            });
+        }
+
+        function toggleLog(key) {
+            socket.emit("toggle_log", {
+                key,
+                value: !logSettings[key]
+            });
+        }
+
+    </script>
+
+</body>
+
+</html>
