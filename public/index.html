@@ -2,234 +2,396 @@
 <html>
 
 <head>
-    <title>Bot Dashboard</title>
+    <title>NF Dashboard</title>
     <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
     <style>
         body {
+            margin: 0;
+            font-family: Arial;
             background: #0f172a;
-            color: #e2e8f0;
-            font-family: monospace;
+            color: #fff;
         }
 
-        #logs {
-            height: 60vh;
-            overflow-y: auto;
-            border: 1px solid #334155;
-            padding: 10px;
-            border-radius: 10px;
+        .container {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            height: 100vh;
+        }
+
+        /* sidebar */
+        .sidebar {
             background: #020617;
+            padding: 20px;
         }
 
-        .btn {
-            margin: 5px;
-            padding: 6px 12px;
+        .sidebar h2 {
+            color: #38bdf8;
+        }
+
+        .sidebar button {
+            width: 100%;
+            margin: 5px 0;
+            padding: 10px;
             background: #1e293b;
             border: none;
-            color: white;
+            color: #fff;
             cursor: pointer;
-            border-radius: 6px;
+            transition: background 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
         }
 
-        .btn:hover {
-            background: #334155;
+        .sidebar button:hover {
+            background: #38bdf8;
         }
 
-        .TOXIC {
-            color: red;
+        .sidebar button.button-pulse {
+            transform: scale(0.98);
+            box-shadow: 0 0 0 6px rgba(56, 189, 248, 0.15);
         }
 
-        .REPLY {
-            color: lime;
+        /* main */
+        .main {
+            padding: 20px;
+        }
+
+        .card {
+            background: #020617;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 10px;
+        }
+
+        #log {
+            height: 300px;
+            overflow: auto;
+            font-size: 13px;
+            background: #000;
+            padding: 10px;
+            border-radius: 10px;
         }
 
         .ERROR {
-            color: pink;
+            color: #ef4444;
         }
 
-        #botInfo {
+        .SYSTEM {
+            color: #38bdf8;
+        }
+
+        .REPLY {
+            color: #22c55e;
+        }
+
+        .TOXIC {
+            color: #facc15;
+        }
+
+        #botCard {
             display: flex;
             align-items: center;
-            gap: 10px;
-            margin-bottom: 10px;
-            background: #1e293b;
-            padding: 10px;
-            border-radius: 10px;
+            justify-content: space-between;
         }
 
-        #avatar {
-            width: 50px;
-            border-radius: 50%;
-            box-shadow: 0 0 10px lime;
+        #botStatus {
+            font-size: 14px;
+            margin-top: 5px;
         }
 
-        #panel {
-            margin-bottom: 10px;
-            background: #1e293b;
-            padding: 10px;
-            border-radius: 10px;
+        .status-online {
+            color: #22c55e;
         }
 
-        .status-on {
-            color: lime;
+        .status-idle {
+            color: #facc15;
         }
 
-        .status-off {
-            color: red;
+        .status-dnd {
+            color: #ef4444;
         }
 
-        .row {
-            margin: 4px 0;
+        .status-connecting {
+            color: #38bdf8;
         }
+
+        .status-offline {
+            color: #6b7280;
+        }
+
+        .active {
+            background: #22c55e !important;
+        }
+
+        #log div {
+            animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
     </style>
 </head>
 
 <body>
 
-    <!-- 👤 BOT INFO -->
-    <div id="botInfo">
-        <img id="avatar" src="">
-        <div>
-            <div id="name">Loading...</div>
-            <div id="id" style="font-size:12px;color:gray;"></div>
+    <div class="container">
+
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <h2>🎛️ Control</h2>
+
+            <button data-key="REPLY" onclick="toggle(this)">Toggle Reply</button>
+            <button data-key="TOXIC" onclick="toggle(this)">Toggle Toxic</button>
+            <button onclick="reset()">🔄 Reset</button>
+            <button onclick="clearLog()">🧹 Clear Log</button>
         </div>
+
+        <!-- MAIN -->
+        <div class="main">
+
+            <div class="card" id="botCard">
+                <div style="display:flex; align-items:center; gap:15px;">
+                    <img id="botAvatar" src="" width="60" style="border-radius:50%">
+
+                    <div>
+                        <h3 id="botName">Loading...</h3>
+                        <div id="botTag"></div>
+                        <div id="botStatus" class="status-connecting">● connecting...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>📊 Log Activity</h3>
+                <canvas id="chart"></canvas>
+            </div>
+
+            <div class="card">
+                <h3>📜 Logs</h3>
+                <div id="log"></div>
+            </div>
+
+        </div>
+
     </div>
-
-    <h2>📊 Bot Dashboard</h2>
-
-    <!-- 🎛️ CONTROL PANEL -->
-    <div id="panel">
-        <h3>⚙️ Feature Control</h3>
-        <div id="status"></div>
-
-        <hr style="margin:10px 0; border-color:#334155;">
-
-        <h3>📜 Log Control</h3>
-        <div id="logControls"></div>
-    </div>
-
-    <!-- 🧹 LOG CONTROLS -->
-    <button class="btn" onclick="clearLogs()">Clear Logs</button>
-    <button class="btn" onclick="toggleAuto()">Auto Scroll</button>
-
-    <!-- 📜 LOG -->
-    <div id="logs"></div>
 
     <script>
+        let currentSettings = {};
         const socket = io();
-        const logsDiv = document.getElementById("logs");
 
-        let autoScroll = true;
-        let settings = {};
-        let logSettings = {};
+        // ---------------- STATE ----------------
+        let stats = {
+            ERROR: 0,
+            SYSTEM: 0,
+            REPLY: 0,
+            TOXIC: 0
+        };
 
-        // 📜 log realtime
-        socket.on("log_line", (line) => {
-            const div = document.createElement("div");
-            div.textContent = line;
+        // ---------------- CHART ----------------
+        const ctx = document.getElementById('chart');
+        let chartUpdatePending = false;
 
-            if (line.includes("TOXIC")) div.className = "TOXIC";
-            if (line.includes("REPLY")) div.className = "REPLY";
-            if (line.includes("ERROR")) div.className = "ERROR";
+        function safeUpdateChart() {
+            if (chartUpdatePending) return;
 
-            logsDiv.appendChild(div);
+            chartUpdatePending = true;
 
-            if (autoScroll) {
-                logsDiv.scrollTop = logsDiv.scrollHeight;
+            setTimeout(() => {
+                chart.update();
+                chartUpdatePending = false;
+            }, 500); // อัปทุก 0.5 วิ
+        }
+
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    { label: 'ERROR', data: [], borderColor: '#ef4444', tension: 0.3 },
+                    { label: 'SYSTEM', data: [], borderColor: '#38bdf8', tension: 0.3 },
+                    { label: 'REPLY', data: [], borderColor: '#22c55e', tension: 0.3 },
+                    { label: 'TOXIC', data: [], borderColor: '#facc15', tension: 0.3 }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { labels: { color: '#fff' } }
+                },
+                scales: {
+                    x: { ticks: { color: '#fff' } },
+                    y: { ticks: { color: '#fff' } }
+                }
             }
         });
 
-        socket.on("clear", () => logsDiv.innerHTML = "");
+        // ---------------- ACTION ----------------
+        function toggle(el) {
+            const key = el.dataset.key;
+            const newValue = !currentSettings[key];
 
-        function clearLogs() {
+            el.classList.add("button-pulse");
+            setTimeout(() => el.classList.remove("button-pulse"), 180);
+
+            socket.emit("toggle", { key, value: newValue });
+        }
+
+        function reset() {
+            socket.emit("reset_settings");
+        }
+
+        function clearLog() {
+            document.getElementById("log").innerHTML = "";
             socket.emit("clear");
         }
 
-        function toggleAuto() {
-            autoScroll = !autoScroll;
-        }
+        // ---------------- LOG ----------------
+        socket.on("log_line", (data) => {
+            if (!data || !data.type) return;
 
-        // 👤 bot info
+            const logBox = document.getElementById("log");
+            const isAtBottom =
+                logBox.scrollTop + logBox.clientHeight >= logBox.scrollHeight - 5;
+
+            const line = document.createElement("div");
+            line.className = data.type;
+
+            const logTime = data.time || "--:--:--";
+            const msg = data.msg || "";
+            line.textContent = `[${logTime}] [${data.type}] ${msg}`;
+
+            logBox.appendChild(line);
+
+            const MAX_LOG = 200;
+            if (logBox.children.length > MAX_LOG) {
+                logBox.removeChild(logBox.firstChild);
+            }
+
+            if (isAtBottom) {
+                logBox.scrollTop = logBox.scrollHeight;
+            }
+
+            // ---- STATS ----
+            if (stats[data.type] !== undefined) {
+                stats[data.type]++;
+            }
+
+            // ---- UPDATE GRAPH ----
+            const time = new Date().toLocaleTimeString();
+
+            chart.data.labels.push(time);
+            chart.data.datasets[0].data.push(stats.ERROR);
+            chart.data.datasets[1].data.push(stats.SYSTEM);
+            chart.data.datasets[2].data.push(stats.REPLY);
+            chart.data.datasets[3].data.push(stats.TOXIC);
+
+            if (chart.data.labels.length > 15) {
+                chart.data.labels.shift();
+                chart.data.datasets.forEach(d => d.data.shift());
+            }
+
+            safeUpdateChart();
+        });
+
+
+
+        // ---------------- BOT INFO ----------------
         socket.on("bot_info", (data) => {
-            avatar.src = data.avatar;
-            name.textContent = data.tag;
-            id.textContent = "ID: " + data.id;
+            document.getElementById("botAvatar").src =
+                data.avatar || "https://cdn-icons-png.flaticon.com/512/4712/4712027.png";
+            document.getElementById("botName").textContent = data.username;
+            document.getElementById("botTag").textContent = data.tag;
+        });
+
+        // ---------------- BOT STATUS ----------------
+
+        socket.on("connect", () => {
+            const statusEl = document.getElementById("botStatus");
+            statusEl.className = "status-connecting";
+            statusEl.textContent = "● connecting...";
+
+            socket.emit("register", "web");
+            socket.emit("request_settings");
+        });
+
+        socket.on("disconnect", () => {
+            const statusEl = document.getElementById("botStatus");
+            statusEl.className = "status-offline";
+            statusEl.textContent = "● offline";
         });
 
         socket.on("bot_status", (status) => {
-            name.textContent = `${name.textContent.split(" (")[0]} (${status})`;
+            lastStatusTime = Date.now();
+
+            const el = document.getElementById("botStatus");
+            el.className = "";
+
+            let text = "offline";
+
+            if (status === "online") {
+                el.classList.add("status-online");
+                text = "online";
+            } else if (status === "idle") {
+                el.classList.add("status-idle");
+                text = "idle";
+            } else if (status === "dnd") {
+                el.classList.add("status-dnd");
+                text = "dnd";
+            } else {
+                el.classList.add("status-offline");
+            }
+
+            el.textContent = "● " + text;
         });
 
-        // ================= FEATURE TOGGLE (ทุกตัว) =================
+        socket.on("clear", () => {
+            document.getElementById("log").innerHTML = "";
+
+            // reset graph ด้วย
+            chart.data.labels = [];
+            chart.data.datasets.forEach(d => d.data = []);
+
+            stats = {
+                ERROR: 0,
+                SYSTEM: 0,
+                REPLY: 0,
+                TOXIC: 0
+            };
+
+            safeUpdateChart();
+        });
+
+        function updateButtons() {
+            document.querySelectorAll(".sidebar button[data-key]").forEach(btn => {
+                const key = btn.dataset.key;
+                btn.classList.toggle("active", currentSettings[key]);
+            });
+        }
+
         socket.on("settings", (data) => {
-            settings = data;
-            renderFeature();
+            currentSettings = data;
+            updateButtons();
         });
 
-        socket.on("update_settings", (data) => {
-            settings = data;
-            renderFeature();
-        });
+        let lastStatusTime = Date.now();
 
-        function renderFeature() {
-            const container = document.getElementById("status");
-            container.innerHTML = "";
-
-            Object.keys(settings).forEach(key => {
-                const div = document.createElement("div");
-                div.className = "row";
-
-                div.innerHTML = `
-            ${key} :
-            <span class="${settings[key] ? 'status-on' : 'status-off'}">
-                ${settings[key] ? '🟢 ON' : '🔴 OFF'}
-            </span>
-            <button class="btn" onclick="toggleFeature('${key}')">Toggle</button>
-        `;
-
-                container.appendChild(div);
-            });
-        }
-
-        function toggleFeature(key) {
-            socket.emit("toggle", {
-                key,
-                value: !settings[key]
-            });
-        }
-
-        // ================= LOG TOGGLE =================
-        socket.on("log_settings", (data) => {
-            logSettings = data;
-            renderLogs();
-        });
-
-        function renderLogs() {
-            const container = document.getElementById("logControls");
-            container.innerHTML = "";
-
-            Object.keys(logSettings).forEach(key => {
-                const div = document.createElement("div");
-                div.className = "row";
-
-                div.innerHTML = `
-            ${key} :
-            <span class="${logSettings[key] ? 'status-on' : 'status-off'}">
-                ${logSettings[key] ? '🟢 ON' : '🔴 OFF'}
-            </span>
-            <button class="btn" onclick="toggleLog('${key}')">Toggle</button>
-        `;
-
-                container.appendChild(div);
-            });
-        }
-
-        function toggleLog(key) {
-            socket.emit("toggle_log", {
-                key,
-                value: !logSettings[key]
-            });
-        }
-
+        // ตรวจทุก 5 วิ
+        setInterval(() => {
+            if (Date.now() - lastStatusTime > 10000) {
+                const el = document.getElementById("botStatus");
+                el.className = "status-offline";
+                el.textContent = "● offline";
+            }
+        }, 5000);
     </script>
 
 </body>

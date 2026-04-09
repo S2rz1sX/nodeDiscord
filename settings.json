@@ -1,7 +1,15 @@
 {
     "token": "",
-    "guildId": "789098199046029332",
-    "channelId": "959861963385634866",
+    "guildId": "",
+    "channelId": "",
     "excludedUserIds": [],
-    "excludedRoleIds": []
+    "excludedRoleIds": [],
+    "gameChannels": {
+        "ROV": "",
+        "Roblox": "",
+        "FreeFire": "",
+        "Valorant": "",
+        "MLBB": "",
+        "PUBG": ""
+    }
 }
