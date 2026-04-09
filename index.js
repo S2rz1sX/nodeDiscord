@@ -260,72 +260,65 @@ client.on("messageCreate", async (msg) => {
     if (!msg.guild) return log("SKIP", "ไม่ใช่ใน guild");
     if (msg.guild.id !== config.guildId) return;
     if (msg.channel.id !== config.channelId) return;
-    if (msg.author.bot) return;
-
+    if (msg.author.bot && msg.author.id !== client.user.id) return; // ไม่ตอบ bot อื่น แต่ตอบตัวเองได้
+    if (msg.reference) return log("SKIP", `เป็น reply ไม่ตอบ → ${msg.author.tag}`);
     if (config.excludedUserIds.includes(msg.author.id)) return;
     if (msg.member?.roles.cache.some(role => config.excludedRoleIds.includes(role.id))) return;
 
     // ---------------- COOLDOWN ----------------
     if (cooldown.has(msg.author.id)) return;
-
     cooldown.set(msg.author.id, true);
     setTimeout(() => cooldown.delete(msg.author.id), 10000);
 
-    const delay = randomTime(3, 7) * 1000;
-    const typingInterval = setInterval(() => {
-        msg.channel.sendTyping();
-    }, 3000);
-
+    const typingInterval = setInterval(() => msg.channel.sendTyping(), 3000);
     const stopTyping = () => clearInterval(typingInterval);
 
+    const delay = randomTime(3, 7) * 1000;
+
     try {
+        const trimmedContent = msg.content?.trim();
+        if (!trimmedContent) return stopTyping();
+
         // ---------------- DELETED MESSAGE ----------------
         if (msg.reference?.messageId) {
             try {
                 const ref = await msg.channel.messages.fetch(msg.reference.messageId);
                 if (!ref) {
                     log("DELETED", `reply deleted by ${msg.author.tag}`);
-                    stopTyping();
                     return setTimeout(() => {
+                        stopTyping();
                         msg.channel.send(random(replyDeleted));
                     }, delay);
                 }
             } catch {
                 log("DELETED", `fetch error deleted ${msg.author.tag}`);
-                stopTyping();
                 return setTimeout(() => {
+                    stopTyping();
                     msg.channel.send(random(replyDeleted));
                 }, delay);
             }
         }
 
-        const content = msg.content.trim();
-
         // ---------------- NORMAL REPLY ----------------
-        if (runtimeSettings.REPLY && wordReply.includes(content)) {
+        if (runtimeSettings.REPLY && wordReply.includes(trimmedContent)) {
             log("REPLY", `ตอบ → ${msg.author.tag}`);
-
-            stopTyping();
-
             return setTimeout(() => {
+                stopTyping();
                 msg.reply(`${random(replyWord)} ${random(emojis)}`);
             }, delay);
         }
 
         // ---------------- TOXIC ----------------
-        if (runtimeSettings.TOXIC && wordReplyToxic.some(word => content.includes(word))) {
+        if (runtimeSettings.TOXIC && wordReplyToxic.some(word => trimmedContent.includes(word))) {
             log("TOXIC", `toxic → ${msg.author.tag}`);
-
-            stopTyping();
-
             return setTimeout(() => {
+                stopTyping();
                 msg.reply(random(replyToxic));
             }, delay);
         }
 
     } catch (err) {
         console.log("❌ ERROR:", err);
-    } finally {
         stopTyping();
     }
 
@@ -339,37 +332,19 @@ client.on("messageCreate", async (msg) => {
         PUBG: ["pubg", "พับจี"]
     };
 
-    const inviteWords = [
-        "เล่น", "มา", "กัน", "ไหม", "มั้ย",
-        "ปะ", "จัด", "หาคน", "ลง", "แรงค์",
-        "rank", "team", "ทีม", "ด่วน", "ว่าง",
-        "หา",
-    ];
+    const inviteWords = ["เล่น","มา","กัน","ไหม","มั้ย","ปะ","จัด","หาคน","ลง","แรงค์","rank","team","ทีม","ด่วน","ว่าง","หา"];
 
-    const content = msg.content?.trim();
-    if (!content) return;
-
-    const clean = content
-        .toLowerCase()
-        .replace(/[^\u0E00-\u0E7Fa-zA-Z0-9 ]/g, "");
-
+    const clean = trimmedContent.toLowerCase().replace(/[^\u0E00-\u0E7Fa-zA-Z0-9 ]/g, "");
     log("MESSAGE", `ข้อความ: ${clean}`);
 
     for (const game in gameKeywords) {
         const hasGame = gameKeywords[game].some(k => clean.includes(k));
         const hasInvite = inviteWords.some(w => clean.includes(w));
 
-        // log เฉพาะเกมที่ detect เจอ
-        if (hasGame && hasInvite) {
-            if (ENABLE_LOG.SYSTEM) {
-                log("SYSTEM", `[CHECK] ${game} | game:${hasGame} invite:${hasInvite}`);
-            }
-        } else {
-            // ถ้าไม่ detect ไม่ log
-            continue;
-        }
+        if (!(hasGame && hasInvite)) continue; // log เฉพาะเกม detect เจอ
 
-        // ---------------- GAME COOLDOWN ----------------
+        if (ENABLE_LOG.SYSTEM) log("SYSTEM", `[CHECK] ${game} | game:${hasGame} invite:${hasInvite}`);
+
         if (gameCooldown.has(game)) {
             log("SKIP", `${game} cooldown`);
             continue;
@@ -392,7 +367,6 @@ client.on("messageCreate", async (msg) => {
 
         log("SYSTEM", `🎮 เจอ ${game} จาก ${msg.author.tag}`);
 
-        const delay = randomTime(3, 7) * 1000;
         setTimeout(() => {
             const embed = {
                 title: "🔥 มีคนชวนเล่นเกม!",
@@ -403,24 +377,19 @@ client.on("messageCreate", async (msg) => {
                 timestamp: new Date()
             };
 
+            // ส่ง embed ปลอดภัย
             if (embed.title && embed.description) {
-                channel.send({ embeds: [embed] }).catch(err => {
-                    log("ERROR", `ส่ง embed ไม่ได้: ${err.message}`);
-                });
-            } else {
-                log("ERROR", `embed ไม่สมบูรณ์ ไม่ส่ง embed`);
+                channel.send({ embeds: [embed] }).catch(err => log("ERROR", `ส่ง embed ไม่ได้: ${err.message}`));
             }
 
-            const replyContent = channelId ? `🎮 ไปเล่นกันได้ที่ <#${channelId}>` : "🎮 มาเล่นกันเถอะ!";
-            if (replyContent) {
-                msg.reply({ content: replyContent }).catch(err => {
-                    log("ERROR", `reply ไม่ได้: ${err.message}`);
-                });
-            }
+            // reply fallback
+            const replyContent = `🎮 ไปเล่นกันได้ที่ <#${channelId}>`;
+            if (replyContent) msg.reply({ content: replyContent }).catch(err => log("ERROR", `reply ไม่ได้: ${err.message}`));
 
+            stopTyping(); // หยุด typing หลังส่ง
         }, delay);
 
-        break;
+        break; // เจอเกมแรกแล้วหยุด
     }
 });
 
